@@ -1,4 +1,4 @@
-def draw_chips(x,y,chip_x0,gap_sht0):	
+def draw_chips(x,y,chip_x0,gap_lng0):	
 	#Draw out the 16 VIRCam chips and return them as a collections of patches
 	#(x0,y0) = RA, Dec of the bottom corner of each chip, such that (0,0) is the bottom-left corner of array
 	#Input x,y are coordinates of the centre of the array
@@ -8,11 +8,11 @@ def draw_chips(x,y,chip_x0,gap_sht0):
 			y0 = (y+gap_sht/2.+(jj-2.)*chip_y+(jj-2.)*gap_sht)
 			chip_x = chip_x0/np.cos(y0*np.pi/180.)
 			gap_lng = gap_lng0/np.cos(y0*np.pi/180.)
-			x0 = (x-gap_lng/2.-(ii-2.)*chip_x-(ii-2.)*gap_lng)
+			x0 = (x+gap_lng/2.+(ii-2.)*chip_x+(ii-2.)*gap_lng)
 			chips.append(patches.Rectangle([x0,y0],chip_x,chip_y))
 			hits_ra.append([x0,(x0+chip_x)])
 			hits_dec.append([y0,y0+chip_y])
-	return chips
+	return PatchCollection(chips,alpha=0.1,edgecolor="none")
 
 def get_tiles():
 	#Return the set of coordinates corresponding to the centres of each tile
@@ -20,30 +20,35 @@ def get_tiles():
 	#Columns of 3 1/2 FoV to the East, and 1/2 FoV to the West
 	#Column of 4 running 1.5 FoV N, 0.5 N, 0.5 S, 1.5 S
 	#			t8
-	#   t2				t5
+	#   t2				t7
 	#			t1
-	#	t7				t6
-	#			t3
-	#	t9				t4
+	#	t3 				t5
+	#			t4
+	#	t9				t6
 	#			t10
 	#Pair as: (t1, t2); (t3,t4); (t5,t6); (t7,t8); (t9,t10)
-	tiles = [[cena_ra,cena_dec+fov_dec/2.], 									 		#Tile 1 coordinates 
-			[cena_ra+fov_ra/np.cos((cena_dec+fov_dec)*np.pi/180.),cena_dec+fov_dec], 	#Tile 2 coordinates 
-			[cena_ra,cena_dec+fov_dec/2.],												#Tile 3 coordinates 
-			[cena_ra-fov_ra/np.cos((cena_dec-fov_dec)*np.pi/180.),cena_dec-fov_dec],	#Tile 4 coordinates 
-			[cena_ra-fov_ra/np.cos((cena_dec+fov_dec)*np.pi/180.),cena_dec+fov_dec],	#Tile 5 coordinates 
-			[cena_ra-fov_ra/np.cos((cena_dec)*np.pi/180.),cena_dec],					#Tile 6 coordinates 
-			[cena_ra+fov_ra/np.cos((cena_dec)*np.pi/180.),cena_dec],					#Tile 7 coordinates 
-			[cena_ra,cena_dec+1.5*fov_dec],												#Tile 8 coordinates 
-			[cena_ra+fov_ra/np.cos((cena_dec-fov_dec)*np.pi/180.),cena_dec-fov_dec],	#Tile 9 coordinates 
-			[cena_ra,cena_dec-1.5*fov_dec]												#Tile 10 coordinates 
+	#(t1,t2,t3);(t4,t5,t6);(t7,t8);(t9,t10)
+	dec_shift = 4.
+	tiles = [[cena_ra,cena_dec+(fov_dec+ddec)/dec_shift], 									 						#Tile 1 coordinates 
+			[cena_ra+(fov_ra+dra)/np.cos((cena_dec+(fov_dec+ddec))*np.pi/180.),cena_dec+(fov_dec+ddec)], 	#Tile 2 coordinates 
+			[cena_ra+(fov_ra+dra)/np.cos((cena_dec)*np.pi/180.),cena_dec],									#Tile 3 coordinates 
+			[cena_ra,cena_dec-(fov_dec+ddec)/dec_shift],															#Tile 4 coordinates 
+			[cena_ra-(fov_ra+dra)/np.cos((cena_dec)*np.pi/180.),cena_dec],									#Tile 5 coordinates 
+			[cena_ra-(fov_ra+dra)/np.cos((cena_dec-(fov_dec+ddec))*np.pi/180.),cena_dec-(fov_dec+ddec)],	#Tile 6 coordinates 
+			[cena_ra-(fov_ra+dra)/np.cos((cena_dec+(fov_dec+ddec))*np.pi/180.),cena_dec+(fov_dec+ddec)],	#Tile 7 coordinates 
+			[cena_ra,cena_dec+(fov_dec+ddec)+(fov_dec+ddec)/dec_shift],											#Tile 8 coordinates 	
+			[cena_ra+(fov_ra+dra)/np.cos((cena_dec-(fov_dec+ddec))*np.pi/180.),cena_dec-(fov_dec+ddec)],	#Tile 9 coordinates 
+			[cena_ra,cena_dec-(fov_dec+ddec)-(fov_dec+ddec)/dec_shift]												#Tile 10 coordinates 
 				]
 	return tiles
 
 def get_spiral(coords):
+	#Draw the Fermat spiral and return the coordinates
 	theta = 137.508*np.pi/180.
+	d = 8. #arcmin
+	d = d/60.
 	a = d/(2.*np.sqrt(n-1))
-	b = 1.0
+	b = 1.0 #Try 4-5 arcmin
 	pointings = []
 	for ii in range(int(n)):
 		ra0 = a*np.sqrt(ii)*np.cos(b*ii*theta)
@@ -51,38 +56,78 @@ def get_spiral(coords):
 		pointings.append([coords[0]+ra0,coords[1]+dec0])
 	return pointings
 
-def draw_footprint(point_ra,point_dec,chip_x,gap_sht):
-	if sys.argv[1] == 'rect':
-		points_x = [point_ra,point_ra+dra,point_ra+dra,point_ra]
-		points_y = [point_dec,point_dec,point_dec+ddec,point_dec+ddec]
-		p1 = PatchCollection(draw_chips(point_ra,point_dec,chip_x,gap_sht),alpha=0.1)
-		p2 = PatchCollection(draw_chips(dra,point_dec,chip_x,gap_sht),alpha=0.1)
-		p3 = PatchCollection(draw_chips(dra,ddec,chip_x,gap_sht),alpha=0.1)
-		p4 = PatchCollection(draw_chips(point_ra,ddec,chip_x,gap_sht),alpha=0.1)
-		collection = [p1,p2,p3,p4]
+def get_paw(spirals):
+	#For each point in the two input Fermat spirals, cycle between them running through the 6-pointing pawprint
+	spir1 = spirals[0]
+	spir2 = spirals[1]
+	if len(spirals) > 2:
+		spir3 = spirals[2]
+	coords_out = []
+# 	dra = 0.95*chip_x
+# 	ddec = 0.475*chip_y
+	for ii in range(len(spir1)):
+		dcoords1 = [[-0.5*dra/np.cos((spir1[ii][1]-ddec)*np.pi/180.),-1.*ddec],
+					[-0.5*dra/np.cos(spir1[ii][1]*np.pi/180.)       ,0.],
+					[-0.5*dra/np.cos((spir1[ii][1]+ddec)*np.pi/180.),ddec],
+					[0.5*dra/np.cos((spir1[ii][1]+ddec)*np.pi/180.) ,ddec],
+					[0.5*dra/np.cos(spir1[ii][1]*np.pi/180.)        ,0.],
+					[0.5*dra/np.cos((spir1[ii][1]-ddec)*np.pi/180.),-1.*ddec]
+					]
+		dcoords2 = [[-0.5*dra/np.cos((spir2[ii][1]-ddec)*np.pi/180.),-1.*ddec],
+					[-0.5*dra/np.cos(spir2[ii][1]*np.pi/180.)       ,0.],
+					[-0.5*dra/np.cos((spir2[ii][1]+ddec)*np.pi/180.),ddec],
+					[0.5*dra/np.cos((spir2[ii][1]+ddec)*np.pi/180.) ,ddec],
+					[0.5*dra/np.cos(spir2[ii][1]*np.pi/180.)        ,0.],
+					[0.5*dra/np.cos((spir2[ii][1]-ddec)*np.pi/180.),-1.*ddec]
+					]
+		if len(spirals) > 2:
+			dcoords3 = [[-0.5*dra/np.cos((spir3[ii][1]-ddec)*np.pi/180.),-1.*ddec],
+						[-0.5*dra/np.cos(spir3[ii][1]*np.pi/180.)       ,0.],
+						[-0.5*dra/np.cos((spir3[ii][1]+ddec)*np.pi/180.),ddec],
+						[0.5*dra/np.cos((spir3[ii][1]+ddec)*np.pi/180.) ,ddec],
+						[0.5*dra/np.cos(spir3[ii][1]*np.pi/180.)        ,0.],
+						[0.5*dra/np.cos((spir3[ii][1]-ddec)*np.pi/180.),-1.*ddec]
+						]			
+		for jj in range(6):
+			coords_out.append([spir1[ii][0]+dcoords1[jj][0],spir1[ii][1]+dcoords1[jj][1]])
+			coords_out.append([spir2[ii][0]+dcoords2[jj][0],spir2[ii][1]+dcoords2[jj][1]])
+			if len(spirals) > 2:
+				coords_out.append([spir3[ii][0]+dcoords3[jj][0],spir3[ii][1]+dcoords3[jj][1]])
+				
+	return coords_out
 
-	if sys.argv[1] == 'rect_centre':
-		points_x = [point_ra,point_ra-1.*dra,point_ra+dra,point_ra+dra,point_ra-1.*dra]
-		points_y = [point_dec,point_dec-1.*ddec,point_dec-1.*ddec,point_dec+ddec,point_dec+ddec]
-		p1 = PatchCollection(draw_chips(point_ra,point_dec,chip_x,gap_sht),alpha=0.05)
-		p2 = PatchCollection(draw_chips(point_ra-dra,point_dec-ddec,chip_x,gap_sht),alpha=0.1)
-		p3 = PatchCollection(draw_chips(point_ra+dra,point_dec-ddec,chip_x,gap_sht),alpha=0.1)
-		p4 = PatchCollection(draw_chips(point_ra+dra,point_dec+ddec,chip_x,gap_sht),alpha=0.1)
-		p5 = PatchCollection(draw_chips(point_ra-dra,point_dec+ddec,chip_x,gap_sht),alpha=0.1)
-		collection = [p1,p2,p3,p4,p5]
-
-	if sys.argv[1] == 'hexagon':
-		points_x = [point_ra,point_ra-1.*dra,point_ra-1.*dra,point_ra,dra,dra]
-		points_y = [point_dec,point_dec+ddec,point_dec+2.*ddec,point_dec+3.*ddec,point_dec+2.*ddec,point_dec+ddec]
-		p1 = PatchCollection(draw_chips(point_ra,point_dec,chip_x,gap_sht),alpha=0.1)
-		p2 = PatchCollection(draw_chips(point_ra-dra,point_dec+ddec,chip_x,gap_sht),alpha=0.1)
-		p3 = PatchCollection(draw_chips(point_ra-dra,point_dec+2.*ddec,chip_x,gap_sht),alpha=0.1)
-		p4 = PatchCollection(draw_chips(point_ra,point_dec+3.*ddec,chip_x,gap_sht),alpha=0.1)
-		p5 = PatchCollection(draw_chips(point_ra+dra,point_dec+2.*ddec,chip_x,gap_sht),alpha=0.1)
-		p6 = PatchCollection(draw_chips(point_ra+dra,point_dec+ddec,chip_x,gap_sht),alpha=0.1)
-		collection = [p1,p2,p3,p4,p5,p6]
-	
-	return points_x, points_y, collection
+# def draw_footprint(point_ra,point_dec,chip_x,gap_sht):
+# 	if sys.argv[1] == 'rect':
+# 		points_x = [point_ra,point_ra+dra,point_ra+dra,point_ra]
+# 		points_y = [point_dec,point_dec,point_dec+ddec,point_dec+ddec]
+# 		p1 = PatchCollection(draw_chips(point_ra,point_dec,chip_x,gap_sht),alpha=0.1)
+# 		p2 = PatchCollection(draw_chips(dra,point_dec,chip_x,gap_sht),alpha=0.1)
+# 		p3 = PatchCollection(draw_chips(dra,ddec,chip_x,gap_sht),alpha=0.1)
+# 		p4 = PatchCollection(draw_chips(point_ra,ddec,chip_x,gap_sht),alpha=0.1)
+# 		collection = [p1,p2,p3,p4]
+# 
+# 	if sys.argv[1] == 'rect_centre':
+# 		points_x = [point_ra,point_ra-1.*dra,point_ra+dra,point_ra+dra,point_ra-1.*dra]
+# 		points_y = [point_dec,point_dec-1.*ddec,point_dec-1.*ddec,point_dec+ddec,point_dec+ddec]
+# 		p1 = PatchCollection(draw_chips(point_ra,point_dec,chip_x,gap_sht),alpha=0.05)
+# 		p2 = PatchCollection(draw_chips(point_ra-dra,point_dec-ddec,chip_x,gap_sht),alpha=0.1)
+# 		p3 = PatchCollection(draw_chips(point_ra+dra,point_dec-ddec,chip_x,gap_sht),alpha=0.1)
+# 		p4 = PatchCollection(draw_chips(point_ra+dra,point_dec+ddec,chip_x,gap_sht),alpha=0.1)
+# 		p5 = PatchCollection(draw_chips(point_ra-dra,point_dec+ddec,chip_x,gap_sht),alpha=0.1)
+# 		collection = [p1,p2,p3,p4,p5]
+# 
+# 	if sys.argv[1] == 'hexagon':
+# 		points_x = [point_ra,point_ra-1.*dra,point_ra-1.*dra,point_ra,dra,dra]
+# 		points_y = [point_dec,point_dec+ddec,point_dec+2.*ddec,point_dec+3.*ddec,point_dec+2.*ddec,point_dec+ddec]
+# 		p1 = PatchCollection(draw_chips(point_ra,point_dec,chip_x,gap_sht),alpha=0.1)
+# 		p2 = PatchCollection(draw_chips(point_ra-dra,point_dec+ddec,chip_x,gap_sht),alpha=0.1)
+# 		p3 = PatchCollection(draw_chips(point_ra-dra,point_dec+2.*ddec,chip_x,gap_sht),alpha=0.1)
+# 		p4 = PatchCollection(draw_chips(point_ra,point_dec+3.*ddec,chip_x,gap_sht),alpha=0.1)
+# 		p5 = PatchCollection(draw_chips(point_ra+dra,point_dec+2.*ddec,chip_x,gap_sht),alpha=0.1)
+# 		p6 = PatchCollection(draw_chips(point_ra+dra,point_dec+ddec,chip_x,gap_sht),alpha=0.1)
+# 		collection = [p1,p2,p3,p4,p5,p6]
+# 	
+# 	return points_x, points_y, collection
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -90,7 +135,8 @@ import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
 import sys
 
-dit = 20.
+dit = 10. #Detector integration time
+nexp = 3. #Number of exposure co-adds
 
 cena_ra = (13.+25./60.+27.61507/3600.)*15. 
 cena_dec = (-43.-1./60.-8.8053/3600.)
@@ -203,11 +249,12 @@ crno_coords = [[(13.+24./60.+10.90/3600.)*15.,-42.-08./60.-24.5/3600.],
 #			 	[13.27:43.23 -41:28:54.6],
 #			 	[]
 			 	
-probes = [[cena_ra-0.1,cena_dec+0.1],[198.0,-45.1],[205.0,-41.0]]
+probes = [[cena_ra-0.1,cena_dec+0.1]]#,[198.0,-45.1],[205.0,-41.0]]
 probes = np.array(probes)
 
 #gc_ra, gc_dec = np.loadtxt('wood2007_gc_coords.txt',unpack=True,comments='#')
-num, gc_ra, gc_dec = np.loadtxt('/Users/matt/Projects/081.D-0651A/data/CenA_allGC_degcoords.txt',unpack=True,comments='#')
+#num, gc_ra, gc_dec = np.loadtxt('/Users/matt/Projects/081.D-0651A/data/CenA_allGC_degcoords.txt',unpack=True,comments='#')
+num, gc_ra, gc_dec = np.loadtxt('CenA_allGC_degcoords_withnewPeng.txt',unpack=True,comments='#')
 
 pres = 0.339 #arcsec per pixel
 
@@ -224,38 +271,248 @@ chip_y = chip_y*pres/3600. #degrees
 fov_ra = 1.292 #degrees
 fov_dec = 1.017 #degrees
 
+dra = 0.95*chip_x
+ddec = 0.475*chip_y
+
 hits_ra = []
 hits_dec = []
 
 fileout = open('pointing_coords.txt','w')
+print >> fileout, "# Tile		Paw		SpDither	RA				Dec"
 
+fig, ax = plt.subplots(figsize=(10,10))
+fig2, ax2 = plt.subplots(figsize=(10,10))
 
-fig, ax = plt.subplots(figsize=(12,10))
+plot_lims = [[cena_ra+3.5,cena_ra-3.5],
+			[cena_dec-3.5,cena_dec+3.5]]
 
 n = 20. #Number of pointings in the spiral
-d = 1.  #Diameter of spiral
 
 #Get the coordinates for all the tiles
 tiles = get_tiles()
 
-#Cycle through 5 sets of 2 tiles and determine the spiral pointings for each set of two tiles
-spiral1 = get_spiral(tiles[0])
-spiral2 = get_spiral(tiles[1])
+#Cycle through the sets of tiles and determine the spiral pointings for them
+#Load them into array for the pawprint determination
+do_spirals = []
+for ii in range(len(tiles)):
+	do_spirals.append(get_spiral(tiles[ii]))
 
-# print spiral1
-# print spiral2
-# plt.figure()
-# for ii in range(len(spiral1)):
-# 	plt.plot([spiral1[ii][0]],[spiral1[ii][1]],'bo')
-# 	plt.plot([spiral2[ii][0]],[spiral2[ii][1]],'ro')
-# 
-# plt.xlim(cena_ra+2.,cena_ra-2.)
-# plt.ylim(cena_dec-2.,cena_dec+2.)
-# plt.show()
+plt.figure()
+for jj in range(len(do_spirals)):
+	for ii in range(len(do_spirals[0])):
+		plt.plot([do_spirals[jj][ii][0]],[do_spirals[jj][ii][1]],'ko')
 
+plt.xlim(plot_lims[0])
+plt.ylim(plot_lims[1])
 
 #For each spiral pointing, find coordinates of each of the 6 pawprints
 #e.g. Tile1, spiral pointing1, pawprint1 -> Tile2, spiral pointing1, pawprint1 -> T1, sp1, paw2 -> T2, sp1, paw2 -> ... -> T1, sp1,paw6 -> T2, sp1, paw6 -> T1, sp2, paw1 -> T2, sp2, paw1 -> ... -> T9, spN, paw6 -> t10, spN, paw6
+#Start with the first 3 tiles, move onto the next 3 tiles, then NW 2 tiles, then SE 2 tiles
+coords_final = get_paw([do_spirals[0],do_spirals[1],do_spirals[2]])
+cnt = 0
+for ii in range(int(n)):
+	for jj in range(6):
+		for kk in range(3):
+			print "Tile %i, Pawprint %i, Dither %i, %f, %f" % (kk+1, jj+1, ii+1, coords_final[cnt][0], coords_final[cnt][1])
+# 			ax.annotate('T%iP%iD%i' % (kk+1, jj+1, ii+1),(coords_final[cnt][0],coords_final[cnt][1]))
+			print >> fileout, "%i			%i		%i			%f		%f" % (kk+1, jj+1, ii+1, coords_final[cnt][0], coords_final[cnt][1])
+			cnt += 1
+
+coords_temp = get_paw([do_spirals[3],do_spirals[4],do_spirals[5]])
+cnt = 0
+for ii in range(int(n)):
+	for jj in range(6):
+		for kk in range(3):
+			print "Tile %i, Pawprint %i, Dither %i, %f, %f" % (kk+4, jj+1, ii+1, coords_temp[cnt][0], coords_temp[cnt][1])
+			print >> fileout, "%i			%i		%i			%f		%f" % (kk+4, jj+1, ii+1, coords_final[cnt][0], coords_final[cnt][1])
+			cnt += 1
+coords_final = np.concatenate((coords_final,coords_temp),axis=0)
+
+coords_temp = get_paw([do_spirals[6],do_spirals[7]])
+cnt = 0
+for ii in range(int(n)):
+	for jj in range(6):
+		for kk in range(2):
+			print "Tile %i, Pawprint %i, Dither %i, %f, %f" % (kk+7, jj+1, ii+1, coords_temp[cnt][0], coords_temp[cnt][1])
+			print >> fileout, "%i			%i		%i			%f		%f" % (kk+7, jj+1, ii+1, coords_final[cnt][0], coords_final[cnt][1])
+			cnt += 1
+coords_final = np.concatenate((coords_final,coords_temp),axis=0)
+
+coords_temp = get_paw([do_spirals[8],do_spirals[9]])
+cnt = 0
+for ii in range(int(n)):
+	for jj in range(6):
+		for kk in range(2):
+			print "Tile %i, Pawprint %i, Dither %i, %f, %f" % (kk+9, jj+1, ii+1, coords_temp[cnt][0], coords_temp[cnt][1])
+			print >> fileout, "%i			%i		%i			%f		%f" % (kk+9, jj+1, ii+1, coords_final[cnt][0], coords_final[cnt][1])
+			cnt += 1
+coords_final = np.concatenate((coords_final,coords_temp),axis=0)
+
+
+# print coords_final
+# print len(coords_final)
+plt.figure()
+for ii in range(len(coords_final)):
+	plt.plot([coords_final[ii][0]],[coords_final[ii][1]],'ko')
+
+plt.xlim(plot_lims[0])
+plt.ylim(plot_lims[1])
+
+# p1 = draw_chips(coords_final[0][0],coords_final[0][1],chip_x,gap_lng)
+collection = []
+for ii in range(len(coords_final)):
+	collection.append(draw_chips(coords_final[ii][0],coords_final[ii][1],chip_x,gap_lng))
+	ax.plot([coords_final[ii][0]],[coords_final[ii][1]],'kx',ms=3)
+
+for patches in collection:
+	ax.add_collection(patches)
+	ax2.add_collection(patches)
+
+for jj in range(len(do_spirals)):
+	for ii in range(len(do_spirals[0])):
+		ax.plot([do_spirals[jj][ii][0]],[do_spirals[jj][ii][1]],'ko')
+		ax.annotate('%i' % (ii+1),(do_spirals[jj][ii][0],do_spirals[jj][ii][1]))
+
+#Plot the probes
+if len(sys.argv) > 1:
+	if sys.argv[1] == 'probe':
+		for ii in range(len(probes)):
+			ax.plot([xlim[0],xlim[1]],[probes[ii][1],probes[ii][1]],'k--')
+			ax.plot([probes[ii][0],probes[ii][0]],[ylim[0],ylim[1]],'k--')
+			ax.plot([probes[ii][0]],[probes[ii][1]],'kx',ms=20)
+
+for ii in range(len(gal_coords)):
+	dwarf, = ax.plot([gal_coords[ii][0]],[gal_coords[ii][1]],'o',color='darkorange',ms=15,markeredgecolor=None)#,alpha=0.75)
+	dwarf2, = ax2.plot([gal_coords[ii][0]],[gal_coords[ii][1]],'o',color='darkorange',ms=15,markeredgecolor=None)#,alpha=0.75)
+
+
+for ii in range(len(crno_coords)):
+	crno, = ax.plot([crno_coords[ii][0]],[crno_coords[ii][1]],'p',color='maroon',ms=12,markeredgecolor=None)#alpha=0.75)
+	crno2, = ax2.plot([crno_coords[ii][0]],[crno_coords[ii][1]],'p',color='maroon',ms=12,markeredgecolor=None)#alpha=0.75)
+
+gcs, = ax.plot(gc_ra,gc_dec,'k,')
+gcs2, = ax2.plot(gc_ra,gc_dec,'k,')
+
+cena, = ax.plot([cena_ra],[cena_dec],'*',color='green',ms=25)
+cena2, = ax2.plot([cena_ra],[cena_dec],'*',color='green',ms=25)
+
+ax.legend((cena,gcs,dwarf,crno),(r'NGC$\,$5128',r'Confirmed GCs $$',r'Known Dwarfs $$',r'Dwarf Candidates $$'),loc=3,numpoints=1)
+ax2.legend((cena2,gcs2,dwarf2,crno2),(r'NGC$\,$5128',r'Confirmed GCs $$',r'Known Dwarfs $$',r'Dwarf Candidates $$'),loc=3,numpoints=1)
+
+ax.set_xlim(plot_lims[0])
+ax.set_ylim(plot_lims[1])
+ax2.set_xlim(plot_lims[0])
+ax2.set_ylim(plot_lims[1])
+ax.tick_params(axis='both',labelsize=18)
+ax.set_xlabel(r'$\alpha$ [deg]',fontsize=20)
+ax.set_ylabel(r'$\delta$ [deg]',fontsize=20)
+#fig.savefig('SCABS-NIR_pointmap.pdf')
+
+ax2.tick_params(axis='both',labelsize=18)
+ax2.set_xlabel(r'$\alpha$ [deg]',fontsize=20)
+ax2.set_ylabel(r'$\delta$ [deg]',fontsize=20)
+#fig2.savefig('SCABS-NIR_targetmap.pdf')
+
+
+print "Total hits = %i" % len(hits_ra)
+hits_ra1 = []
+hits_ra0 = []
+hits_dec0 = []
+hits_dec1 = []
+for ii in range(len(hits_ra)):
+	hits_ra0.append(hits_ra[ii][0])
+	hits_ra1.append(hits_ra[ii][1])
+	hits_dec0.append(hits_dec[ii][0])
+	hits_dec1.append(hits_dec[ii][1])
+
+pcheck_ra = np.linspace(np.min(hits_ra0),np.max(hits_ra1),1e4)
+pcheck_dec = np.linspace(np.min(hits_dec0),np.max(hits_dec1),1e4)
+
+counts = []
+
+if len(sys.argv) > 1:
+	 if sys.argv[1] == 'probe':
+		print "Probing coverage..."
+		for ii in range(len(probes)):
+			print "Probe %i, RA...." % (ii+1)
+			cnt_ra = []	
+			for ra in pcheck_ra:
+				mask = np.where(hits_dec0 <= probes[ii][1],1,0)
+				chk_ra0 = np.compress(mask,hits_ra0)
+				chk_ra1 = np.compress(mask,hits_ra1)
+				chk_dec0 = np.compress(mask,hits_dec0)
+				chk_dec1 = np.compress(mask,hits_dec1)
+				mask = np.where(chk_dec1 >= probes[ii][1],1,0)
+				chk_ra0 = np.compress(mask,chk_ra0)
+				chk_ra1 = np.compress(mask,chk_ra1)
+				chk_dec0 = np.compress(mask,chk_dec0)
+				chk_dec1 = np.compress(mask,chk_dec1)
+				mask = np.where(chk_ra0 <= ra,1,0)
+				chk_ra0 = np.compress(mask,chk_ra0)
+				chk_ra1 = np.compress(mask,chk_ra1)
+				chk_dec0 = np.compress(mask,chk_dec0)
+				chk_dec1 = np.compress(mask,chk_dec1)
+				mask = np.where(chk_ra1 >= ra,1,0)
+				chk_ra0 = np.compress(mask,chk_ra0)
+				chk_ra1 = np.compress(mask,chk_ra1)
+				chk_dec0 = np.compress(mask,chk_dec0)
+				chk_dec1 = np.compress(mask,chk_dec1)
+	   
+				cnt_ra.append(len(chk_ra0))
+   
+			print "Probe %i, Dec...." % (ii+1)
+			cnt_dec = []	
+			for dec in pcheck_dec:
+				mask = np.where(hits_ra0 <= probes[ii][0],1,0)
+				chk_ra0 = np.compress(mask,hits_ra0)
+				chk_ra1 = np.compress(mask,hits_ra1)
+				chk_dec0 = np.compress(mask,hits_dec0)
+				chk_dec1 = np.compress(mask,hits_dec1)
+				mask = np.where(chk_ra1 >= probes[ii][0],1,0)
+				chk_ra0 = np.compress(mask,chk_ra0)
+				chk_ra1 = np.compress(mask,chk_ra1)
+				chk_dec0 = np.compress(mask,chk_dec0)
+				chk_dec1 = np.compress(mask,chk_dec1)
+				mask = np.where(chk_dec0 <= dec,1,0)
+				chk_ra0 = np.compress(mask,chk_ra0)
+				chk_ra1 = np.compress(mask,chk_ra1)
+				chk_dec0 = np.compress(mask,chk_dec0)
+				chk_dec1 = np.compress(mask,chk_dec1)
+				mask = np.where(chk_dec1 >= dec,1,0)
+				chk_ra0 = np.compress(mask,chk_ra0)
+				chk_ra1 = np.compress(mask,chk_ra1)
+				chk_dec0 = np.compress(mask,chk_dec0)
+				chk_dec1 = np.compress(mask,chk_dec1)
+	   
+				cnt_dec.append(len(chk_ra0))
+   
+			counts.append([cnt_ra,cnt_dec])
+   
+		counts = np.array(counts)
+
+if len(sys.argv) > 1:
+	if sys.argv[1] == 'probe':
+		plt.figure(figsize=(10,10))
+		cnt = 0
+		for ii in range(len(probes)):
+			cnt = cnt + 1
+			plt.subplot('%i%i%i' % (len(probes),2,cnt))
+			plt.plot(pcheck_ra,counts[ii][0]*dit*nexp,'b')
+			plt.xlim(xlim[0],xlim[1])
+			plt.xlabel(r'RA [deg]')
+			plt.ylabel(r'Exp. Time [s]')
+	
+			cnt = cnt + 1
+			plt.subplot('%i%i%i' % (len(probes),2,cnt))
+			plt.plot(pcheck_dec,counts[ii][1]*dit*nexp,'b')
+			plt.xlim(ylim[0],ylim[1])
+			plt.xlabel(r'Dec [deg]')
+			plt.ylabel(r'Exp. Time [s]')
+	
+		plt.savefig('decam_probes.pdf')
+
+plt.show()
+
 
 
 exit()
@@ -393,11 +650,13 @@ for ii in range(len(gal_coords)):
 
 for ii in range(len(crno_coords)):
 	crno, = ax.plot([crno_coords[ii][0]],[crno_coords[ii][1]],'p',color='maroon',ms=12,markeredgecolor=None)#alpha=0.75)
-gcs, = ax.plot(gc_ra,gc_dec,'k,')
+#gcs, = ax.plot(gc_ra,gc_dec,'k,')
 
 cena, = ax.plot([cena_ra],[cena_dec],'*',color='green',ms=25)
+cena2, = ax2.plot([cena_ra],[cena_dec],'*',color='green',ms=25)
 
 ax.legend((cena,gcs,dwarf,crno,wcen),(r'NGC$\,$5128',r'Confirmed GCs $$',r'Known Dwarfs $$',r'Dwarf Candidates $$',r'$\omega$ Centauri'),loc=3,numpoints=1)
+ax2.legend((cena2,gcs2,dwarf2,crno2,wcen2),(r'NGC$\,$5128',r'Confirmed GCs $$',r'Known Dwarfs $$',r'Dwarf Candidates $$',r'$\omega$ Centauri'),loc=3,numpoints=1)
 
 ax.set_xlim(xlim[0],xlim[1])
 ax.set_ylim(ylim[0],ylim[1])
