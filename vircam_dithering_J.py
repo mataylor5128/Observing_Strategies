@@ -107,8 +107,8 @@ def make_sadt(tile,dither,ra,dec):
 
 	sadt_file = open('%sngc5128_vista_t%i_SpD%i_J_6n.xml' % (sadt_dir,tile,dither),'w')
 	print >> sadt_file, '<?xml version="1.0" encoding="UTF-8" standalone="no"?>'
-	print >> sadt_file, '(%%"<SURVEY backtrackStep=\"0.0\" id=\"ngc5128_vista_final_t%i_SpD%i_6n\" ip=\"VIRCAM-97.01\" maxJitter=\"0.1\" tileAngle=\"0\" tileOverlapX=\"0.0\" tileOverlapY=\"-330.0\">")' % (tile,dither)
-	print >> sadt_file, '(%%"<SURVEY_AREA coordSys=\"FK5 (J2000)\" exclude=\"false\" height=\"1.2005\" lat=\"%i:%i:%0.4f\" long=\"%i:%i:%0.4f\" number=\"1\" posangle=\"0.0000\" type=\"Geodesic Rectangle\" width=\"1.292\"/>")' % (ra1,ra2,ra3,dec1,dec2,dec3)
+	print >> sadt_file, '<SURVEY backtrackStep=\"0.0\" id=\"ngc5128_vista_final_t%i_SpD%i_6n\" ip=\"VIRCAM-97.01\" maxJitter=\"0.1\" tileAngle=\"0\" tileOverlapX=\"0.0\" tileOverlapY=\"-330.0\">' % (tile,dither)
+	print >> sadt_file, '<SURVEY_AREA coordSys=\"FK5 (J2000)\" exclude=\"false\" height=\"1.2005\" lat=\"%i:%i:%0.4f\" long=\"%i:%i:%0.4f\" number=\"1\" posangle=\"0.0000\" type=\"Geodesic Rectangle\" width=\"1.292\"/>' % (dec1,dec2,dec3,ra1,ra2,ra3)
 	print >> sadt_file, '</SURVEY>'
 	sadt_file.close()
 
@@ -117,6 +117,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.collections import PatchCollection
 import sys
+import os
 
 #Create output sadt directory if it doesn't exist
 sadt_dir = 'sadt_J/'
